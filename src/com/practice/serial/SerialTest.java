@@ -1,16 +1,76 @@
 package com.practice.serial;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+
 import gnu.io.CommPortIdentifier; 
 import gnu.io.SerialPort;
 import gnu.io.SerialPortEvent; 
 import gnu.io.SerialPortEventListener; 
+
 import java.util.Enumeration;
 
 
 public class SerialTest implements SerialPortEventListener {
+	/*
+	 * Custom
+	 * http://marc.info/?l=rxtx&m=135092551225124&w=2
+	 */
+	private final Object responseSync = new Object();
+	private String responseData;
+	
+	 public void putAtCommand(String cmd) throws IOException, InterruptedException {
+	        synchronized (responseSync) {
+	            output.write(cmd.getBytes());
+	            responseSync.wait();
+	            // when we reach this line a valid response is available in
+	            // responseData field
+	            System.out.println("Response: " + responseData);
+	            
+	            // read responseData here and throw exception on error
+	            // or return results ... whatever
+	        }
+	    }
+	
+	 private class Callback implements SerialPortEventListener {
+
+//	        private byte[] readBuff = new byte[256];
+
+	        @Override
+	        public void serialEvent(SerialPortEvent spe) {
+	            synchronized (responseSync) {
+	                if (spe.getEventType() == SerialPortEvent.DATA_AVAILABLE) {
+//	                    try {
+	                    	
+	                    	try {
+	            				String inputLine=input.readLine();
+	            				System.out.println(inputLine);
+	            				responseData = inputLine;
+	            			} catch (Exception e) {
+	            				System.err.println(e.toString());
+	            			}
+//	                        int av = input.available();
+//	                        int read = input.read(readBuff, 0, av);
+	                        // parse readBuff from 0 to read-1 for packet end
+	                        // append data to responseData
+
+	                        // when packet end reached:
+	                        responseSync.notifyAll();
+	                        // this will wake the waiting thread at putAtCommand
+//	                    } catch (IOException ex) {
+//	                        // handle exception
+//	                    }
+	                }
+	            }
+	        }
+	    }
+	 
+	 
+	 /*
+	  * End Custom
+	  */
 	SerialPort serialPort;
         /** The port we're normally going to use. */
 	private static final String PORT_NAMES[] = { 
@@ -71,15 +131,17 @@ public class SerialTest implements SerialPortEventListener {
 			output = serialPort.getOutputStream();
 
 			// add event listeners
-			serialPort.addEventListener(this);
+//			serialPort.addEventListener(this);
+			serialPort.addEventListener(new Callback());
 			serialPort.notifyOnDataAvailable(true);
 			
-			output.write("Hello\n".getBytes());
+//			output.write("Hello\n".getBytes());
+//			serialPort.
 		} catch (Exception e) {
 			System.err.println(e.toString());
 		}
 	}
-
+	
 	/**
 	 * This should be called when you stop using the port.
 	 * This will prevent port locking on platforms like Linux.
